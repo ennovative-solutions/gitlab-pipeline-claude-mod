@@ -11,7 +11,7 @@ CI ● web-app ████████░░ 14/17 · ✓ api-service ███
 
 - Starts watching by itself after a successful `git push` to GitLab.
 - Shows one entry per watched pipeline: a status glyph, the project, a progress bar and the job count.
-- Colours a finished pipeline: green when it passed, red when it failed, grey when it was canceled.
+- Marks a finished pipeline: `✓` when it passed, `✗` when it failed, `⊘` when it was canceled.
 - Shows a toast and sends a desktop notification when a pipeline finishes.
 - Watches several repositories at once: every repository the session touched.
 - Adds a `/pipeline` command, and a `watch_pipeline` tool that Claude can call itself.

@@ -38,14 +38,6 @@ const GLYPH: Record<string, string> = {
   pending: '○',
 }
 
-// The status line takes plain text, so a finished pipeline is coloured with ANSI codes.
-const COLOR: Record<string, string> = {
-  success: '\x1b[32m',
-  failed: '\x1b[31m',
-  canceled: '\x1b[90m',
-}
-const RESET_COLOR = '\x1b[39m'
-
 type GitlabPipeline = {
   id: number
   iid: number
@@ -271,12 +263,6 @@ function bar(done: number, total: number, width: number): string {
   return '█'.repeat(filled) + '░'.repeat(width - filled)
 }
 
-function paint(status: string, text: string): string {
-  const color = COLOR[status]
-
-  return color ? `${color}${text}${RESET_COLOR}` : text
-}
-
 function isActive(watch: PipelineWatch): boolean {
   return !watch.isGivenUp && !(watch.snapshot && FINISHED.has(watch.snapshot.status))
 }
@@ -289,10 +275,7 @@ function statusLine(list: PipelineWatch[]): string | undefined {
     if (!snapshot) return `○ ${shortName(target.project)}`
     const { done, total } = progressOf(snapshot.jobs)
 
-    return paint(
-      snapshot.status,
-      `${glyphOf(snapshot.status)} ${shortName(target.project)} ${bar(done, total, STATUS_BAR)} ${done}/${total}`,
-    )
+    return `${glyphOf(snapshot.status)} ${shortName(target.project)} ${bar(done, total, STATUS_BAR)} ${done}/${total}`
   })
 
   return `CI ${parts.join(' · ')}`

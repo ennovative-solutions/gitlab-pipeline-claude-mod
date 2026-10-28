@@ -165,7 +165,7 @@ test('a git push of a pipeline that passed is reported as passed', async () => {
   const ran = await mod.bash('cd /work/lib && git push', PUSH_OUTPUT)
 
   assert.equal(ran.text, PUSH_OUTPUT)
-  assert.equal(mod.statuses.at(-1), 'CI \x1b[32m✓ lib ███░░░░░░░ 1/4\x1b[39m')
+  assert.equal(mod.statuses.at(-1), 'CI ✓ lib ███░░░░░░░ 1/4')
   assert.deepEqual(mod.toasts, ['lib: pipeline #7 success on main'])
   assert.deepEqual(mod.notifications, ['lib: pipeline #7 success on main'])
 })
@@ -175,7 +175,7 @@ test('a git push of a pipeline that failed is reported as failed', async () => {
   await mod.start()
   await mod.bash('cd /work/lib && git push', PUSH_OUTPUT)
 
-  assert.equal(mod.statuses.at(-1), 'CI \x1b[31m✗ lib ███░░░░░░░ 1/4\x1b[39m')
+  assert.equal(mod.statuses.at(-1), 'CI ✗ lib ███░░░░░░░ 1/4')
   assert.deepEqual(mod.toasts, ['lib: pipeline #7 failed on main'])
 })
 
@@ -242,7 +242,7 @@ test('/pipeline with a pipeline URL watches that pipeline', async () => {
   await mod.start()
 
   assert.match(await mod.pipelineCommand('https://gitlab.com/group/app/-/pipelines/42'), /#7 of group\/app \(canceled\)/)
-  assert.equal(mod.statuses.at(-1), 'CI \x1b[90m⊘ app ███░░░░░░░ 1/4\x1b[39m')
+  assert.equal(mod.statuses.at(-1), 'CI ⊘ app ███░░░░░░░ 1/4')
 })
 
 test('/pipeline stop clears the status line', async () => {
