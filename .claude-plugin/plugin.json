@@ -1,0 +1,11 @@
+{
+  "name": "ci-pipeline-status",
+  "version": "0.4.0",
+  "description": "Shows the progress of GitLab CI pipelines in the status line",
+  "author": { "name": "Ennovative Solutions" },
+  "homepage": "https://github.com/ennovative-solutions/gitlab-pipeline-claude-mod",
+  "repository": "https://github.com/ennovative-solutions/gitlab-pipeline-claude-mod",
+  "license": "MIT",
+  "keywords": ["gitlab", "ci", "pipeline", "status-line"],
+  "types": "./types/index.d.ts"
+}

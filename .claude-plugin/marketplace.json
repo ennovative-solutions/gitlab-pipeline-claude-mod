@@ -1,0 +1,12 @@
+{
+  "name": "ennovative-solutions",
+  "owner": { "name": "Ennovative Solutions" },
+  "metadata": { "description": "Claude Code mods by Ennovative Solutions" },
+  "plugins": [
+    {
+      "name": "ci-pipeline-status",
+      "source": "./",
+      "description": "Shows the progress of GitLab CI pipelines in the Claude Code status line"
+    }
+  ]
+}

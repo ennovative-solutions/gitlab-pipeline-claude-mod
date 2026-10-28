@@ -1,0 +1,24 @@
+{
+  "name": "ci-pipeline-status",
+  "version": "0.4.0",
+  "description": "Claude Code mod that shows the progress of GitLab CI pipelines in the status line",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "author": "Ennovative Solutions",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ennovative-solutions/gitlab-pipeline-claude-mod.git"
+  },
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3"
+  }
+}
