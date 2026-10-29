@@ -75,7 +75,8 @@ jobs:
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
           GITLEAKS_ENABLE_COMMENTS: false
 
-  # Tags each new version on main as v<version>, once every check has passed.
+  # Tags each new version on main as v<version> and publishes a GitHub Release
+  # for it, once every check has passed.
   tag:
     needs: [validate, secret-scan]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -88,16 +89,31 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Read the version
+        id: version
+        run: echo "tag=v$(node -p 'require("./.claude-plugin/plugin.json").version')" >> "$GITHUB_OUTPUT"
+
       - name: Tag the version
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          version=$(node -p 'require("./.claude-plugin/plugin.json").version')
-          tag="v$version"
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
-            echo "$tag already exists; nothing to tag."
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "$TAG already exists; nothing to tag."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$tag" -m "ci-pipeline-status $version"
-          git push origin "$tag"
-          echo "Tagged $GITHUB_SHA as $tag."
+          git tag -a "$TAG" -m "ci-pipeline-status ${TAG#v}"
+          git push origin "$TAG"
+          echo "Tagged $GITHUB_SHA as $TAG."
+
+      - name: Publish a release for the tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; nothing to publish."
+            exit 0
+          fi
+          gh release create "$TAG" --verify-tag --generate-notes --title "ci-pipeline-status ${TAG#v}"

@@ -156,7 +156,8 @@ npm version 0.5.0 --no-git-tag-version
 ```
 
 Then change `"version"` in `.claude-plugin/plugin.json` to the same number.
-Once the change is on `main` and CI passes, CI tags that commit `v0.5.0`.
+Once the change is on `main` and CI passes, CI tags that commit `v0.5.0`
+and publishes a GitHub Release for it, with notes generated from the changes since the previous version.
 
 ## License
 
