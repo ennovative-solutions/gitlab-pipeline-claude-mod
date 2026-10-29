@@ -34,6 +34,24 @@ jobs:
             process.exit(isValid ? 0 : 1)
           '
 
+      - name: Check that the versions match
+        run: |
+          node -e '
+            const read = file => JSON.parse(require("fs").readFileSync(file, "utf8"))
+            const lock = read("package-lock.json")
+            const versions = {
+              ".claude-plugin/plugin.json": read(".claude-plugin/plugin.json").version,
+              "package.json": read("package.json").version,
+              "package-lock.json": lock.version,
+              "package-lock.json (root package)": lock.packages[""].version,
+            }
+            for (const [file, version] of Object.entries(versions)) console.log(`${file}: ${version}`)
+            if (new Set(Object.values(versions)).size !== 1) {
+              console.error("The versions differ. Set the same version in each file.")
+              process.exit(1)
+            }
+          '
+
       - name: Type-check
         run: npm run typecheck
 
@@ -56,3 +74,30 @@ jobs:
           # gitleaks-action needs a (free) license key for repositories owned by an organization.
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
           GITLEAKS_ENABLE_COMMENTS: false
+
+  # Tags each new version on main as v<version>, once every check has passed.
+  tag:
+    needs: [validate, secret-scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: tag
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Tag the version
+        run: |
+          version=$(node -p 'require("./.claude-plugin/plugin.json").version')
+          tag="v$version"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "$tag already exists; nothing to tag."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "ci-pipeline-status $version"
+          git push origin "$tag"
+          echo "Tagged $GITHUB_SHA as $tag."

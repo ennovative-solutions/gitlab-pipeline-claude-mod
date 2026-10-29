@@ -141,8 +141,20 @@ claude plugin validate .
 Claude Code lays the full API types in `.claude-plugin/types/` when it loads the mod.
 `typings/claude-code.d.ts` is a small stand-in for those types, so the type-check also runs in CI.
 
-Every pull request runs CI: JSON validation, the type-check, the tests and a gitleaks secret scan.
+Every pull request runs CI: JSON validation, a version check, the type-check, the tests and a gitleaks secret scan.
 A pull request is merged only when CI passes.
+
+### Releasing a version
+
+The version lives in `.claude-plugin/plugin.json` and `package.json`, and CI fails when they differ.
+Set the new version in both:
+
+```
+npm version 0.5.0 --no-git-tag-version
+```
+
+Then change `"version"` in `.claude-plugin/plugin.json` to the same number.
+Once the change is on `main` and CI passes, CI tags that commit `v0.5.0`.
 
 ## License
 
