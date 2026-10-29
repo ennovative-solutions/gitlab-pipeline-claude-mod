@@ -26,6 +26,9 @@ const JOBS = [
 
 type Setup = {
   status?: string
+  // False: GitLab has no pipeline for the commit (yet). `withoutCi`: projects that have none at all.
+  hasPipeline?: boolean
+  withoutCi?: string[]
   env?: Record<string, string>
   hasGlab?: boolean
   glabError?: string
@@ -51,7 +54,15 @@ function pipeline(host: string, project: string, status: string) {
 
 // A fake engine beneath the mod: git and glab answered from the tables above,
 // and what the mod shows recorded.
-function setup({ status = 'running', env = {}, hasGlab = true, glabError, hasFolders = true }: Setup = {}) {
+function setup({
+  status = 'running',
+  hasPipeline = true,
+  withoutCi = [],
+  env = {},
+  hasGlab = true,
+  glabError,
+  hasFolders = true,
+}: Setup = {}) {
   const hooks: { event: string; matcher?: Record<string, string | RegExp>; hook: Hook }[] = []
   const glabCalls: string[][] = []
   const statuses: (string | undefined)[] = []
@@ -60,6 +71,8 @@ function setup({ status = 'running', env = {}, hasGlab = true, glabError, hasFol
   const commands: string[] = []
   const tools: string[] = []
   const state = new Map<string, { value: unknown; version: number }>()
+  const timers = new Set<() => void>()
+  let time = 0
 
   const $ = {
     process: {
@@ -80,7 +93,9 @@ function setup({ status = 'running', env = {}, hasGlab = true, glabError, hasFol
         const project = decodeURIComponent(/projects\/([^/]+)/.exec(path)?.[1] ?? '')
         if (path.includes('/jobs')) return ok(JSON.stringify(JOBS))
         if (path.includes('/bridges')) return ok('[]')
-        if (path.includes('?sha=')) return ok(JSON.stringify([pipeline(host, project, status)]))
+        const hasCi = !withoutCi.includes(project)
+        if (path.includes('?sha=')) return ok(JSON.stringify(hasPipeline && hasCi ? [pipeline(host, project, status)] : []))
+        if (path.includes('/pipelines?')) return ok(JSON.stringify(hasCi ? [pipeline(host, project, status)] : []))
         return ok(JSON.stringify(pipeline(host, project, status)))
       },
     },
@@ -102,7 +117,13 @@ function setup({ status = 'running', env = {}, hasGlab = true, glabError, hasFol
         return { isSet: true, version: version + 1 }
       },
     },
-    clock: { now: async () => 0, every: () => ({ cancel() {} }) },
+    clock: {
+      now: async () => time,
+      every: (_ms: number, tick: () => void) => {
+        timers.add(tick)
+        return { cancel: () => timers.delete(tick) }
+      },
+    },
     ui: {
       status: (text: string | undefined) => statuses.push(text),
       toast: (text: string) => toasts.push(text),
@@ -138,8 +159,28 @@ function setup({ status = 'running', env = {}, hasGlab = true, glabError, hasFol
   const start = () => raise('session.start', { cwd: '/' })
   const pipelineCommand = async (args = '') => (await raise('command.run', { command: 'pipeline', args })).text as string
   const bash = (command: string, output = '') => raise('tool.call', { tool: 'Bash', command }, { text: output })
+  // Moves the clock on and lets the running timers poll once.
+  const later = async (ms: number) => {
+    time += ms
+    timers.forEach(tick => tick())
+    await new Promise(resolve => setImmediate(resolve))
+  }
 
-  return { hooks, glabCalls, statuses, toasts, notifications, commands, tools, start, pipelineCommand, bash, raise }
+  return {
+    hooks,
+    glabCalls,
+    statuses,
+    toasts,
+    notifications,
+    commands,
+    tools,
+    timers,
+    start,
+    pipelineCommand,
+    bash,
+    raise,
+    later,
+  }
 }
 
 function ok(stdout: string) {
@@ -216,6 +257,69 @@ test('when glab is not logged in the mod passes on what glab says', async () => 
   await mod.start()
 
   assert.equal(await mod.pipelineCommand('/work/lib'), 'group/lib: glab: 401 Unauthorized')
+})
+
+test('a project without CI pipelines is not watched', async () => {
+  const mod = setup({ withoutCi: ['group/app'] })
+  await mod.start()
+
+  assert.equal(await mod.pipelineCommand('/work/app'), 'group/app: This project has no CI pipelines, so it is not watched.')
+  assert.equal(mod.statuses.at(-1), undefined)
+  assert.deepEqual(mod.toasts, ['app: This project has no CI pipelines, so it is not watched.'])
+  assert.equal(mod.timers.size, 0)
+})
+
+test('a push whose pipeline never appears is given up after 10 minutes', async () => {
+  const mod = setup({ hasPipeline: false })
+  await mod.start()
+  await mod.bash('cd /work/lib && git push', PUSH_OUTPUT)
+  assert.equal(mod.statuses.at(-1), 'CI ○ lib')
+
+  await mod.later(5 * 60_000)
+  assert.equal(mod.statuses.at(-1), 'CI ○ lib')
+  assert.deepEqual(mod.toasts, [])
+
+  await mod.later(6 * 60_000)
+  assert.equal(mod.statuses.at(-1), undefined)
+  assert.deepEqual(mod.toasts, ['lib: No pipeline appeared for 6685e88e in 10 minutes.'])
+  assert.equal(mod.timers.size, 0)
+})
+
+test('a watch that only gets errors is given up after 10 minutes', async () => {
+  const mod = setup({ glabError: 'glab: 403 Forbidden' })
+  await mod.start()
+  await mod.bash('cd /work/lib && git push', PUSH_OUTPUT)
+  assert.equal(mod.statuses.at(-1), 'CI ○ lib')
+
+  await mod.later(11 * 60_000)
+  assert.equal(mod.statuses.at(-1), undefined)
+  assert.deepEqual(mod.toasts, ['lib: Stopped after 10 minutes of errors: glab: 403 Forbidden'])
+  assert.equal(mod.timers.size, 0)
+})
+
+test('a long pipeline is not given up while GitLab answers', async () => {
+  const mod = setup()
+  await mod.start()
+  await mod.bash('cd /work/lib && git push', PUSH_OUTPUT)
+  for (let minutes = 0; minutes < 30; minutes += 5) {
+    await mod.later(5 * 60_000)
+  }
+
+  assert.equal(mod.statuses.at(-1), 'CI ● lib ███░░░░░░░ 1/4')
+  assert.deepEqual(mod.toasts, [])
+  assert.equal(mod.timers.size, 1)
+})
+
+test('/pipeline leaves out a touched repository without CI pipelines', async () => {
+  const mod = setup({ withoutCi: ['group/app'] })
+  await mod.start()
+  await mod.raise('tool.call', { tool: 'Edit', file_path: '/work/app/src/main.ts' })
+  await mod.bash('git -C /work/lib status')
+
+  const text = await mod.pipelineCommand()
+  assert.match(text, /group\/app: This project has no CI pipelines/)
+  assert.match(text, /Watching pipeline #7 of group\/lib/)
+  assert.equal(mod.statuses.at(-1), 'CI ● lib ███░░░░░░░ 1/4')
 })
 
 test('a reload redraws the status line of a finished pipeline', async () => {

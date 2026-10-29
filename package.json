@@ -1,6 +1,6 @@
 {
   "name": "ci-pipeline-status",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Claude Code mod that shows the progress of GitLab CI pipelines in the status line",
   "private": true,
   "type": "module",

@@ -30,7 +30,8 @@ export type PipelineSnapshot = {
   jobs: PipelineJob[]
 }
 
-// One watched project. `since` is when the watch started, in epoch ms.
+// One watched project. `since` is when the watch started or last got a pipeline
+// from GitLab, in epoch ms. A watch is given up after 10 minutes without one.
 export type PipelineWatch = {
   target: PipelineTarget
   snapshot: PipelineSnapshot | null

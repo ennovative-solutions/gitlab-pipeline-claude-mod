@@ -106,7 +106,9 @@ Claude can also start a watch itself, with the `watch_pipeline` tool.
 - The mod polls GitLab every 10 seconds.
 - The mod watches the pipeline of the HEAD commit, not the latest pipeline of the branch.
   Before GitLab creates that pipeline, the status line shows `○ <project>`.
-- After 10 minutes without a pipeline, the mod stops checking that repository.
+- A project without any CI pipelines is not watched.
+- After 10 minutes without a pipeline, or with only errors from GitLab, the mod stops checking that repository.
+  It shows a toast with the reason and removes the project from the status line.
 - A downstream pipeline counts as a job with the downstream pipeline's status.
 - Manual jobs that never ran do not count in the progress.
 - The mod stops polling once every watched pipeline has finished.

@@ -268,11 +268,13 @@ function isActive(watch: PipelineWatch): boolean {
   return !watch.isGivenUp && !(watch.snapshot && FINISHED.has(watch.snapshot.status))
 }
 
+// A watch the mod gave up on leaves the status line; a toast said why.
 function statusLine(list: PipelineWatch[]): string | undefined {
-  if (list.length === 0) {
+  const shown = list.filter(watch => !watch.isGivenUp)
+  if (shown.length === 0) {
     return undefined
   }
-  const parts = list.map(({ target, snapshot }) => {
+  const parts = shown.map(({ target, snapshot }) => {
     if (!snapshot) return `○ ${shortName(target.project)}`
     const { done, total } = progressOf(snapshot.jobs)
 
@@ -291,20 +293,37 @@ async function patch($: EngineInterface, target: PipelineTarget, change: Partial
   )
 }
 
+async function hasPipelines($: EngineInterface, target: PipelineTarget): Promise<boolean> {
+  const project = encodeURIComponent(target.project)
+  const any = await glab<GitlabPipeline[]>($, target.host, `projects/${project}/pipelines?per_page=1`)
+
+  return any.length > 0
+}
+
+async function giveUp($: EngineInterface, target: PipelineTarget, message: string) {
+  await patch($, target, { message, isGivenUp: true })
+  $.ui.toast(`${shortName(target.project)}: ${message}`)
+}
+
+// A watch gives up on a project without pipelines at once, and after 10 minutes
+// without an answer from GitLab: no pipeline for the commit, or only errors.
 async function pollOne($: EngineInterface, watch: PipelineWatch, now: number) {
   const { target } = watch
+  const isOverdue = now - watch.since > GIVE_UP_MS
   try {
     const shot = await fetchSnapshot($, target)
     if (!shot) {
-      const isGivenUp = now - watch.since > GIVE_UP_MS
-      const message = isGivenUp
-        ? `No pipeline appeared for ${target.sha?.slice(0, 8)} in 10 minutes.`
-        : `Waiting for a pipeline on ${target.sha?.slice(0, 8)}. Is it pushed?`
-      await patch($, target, { message, isGivenUp })
+      if (!(await hasPipelines($, target))) {
+        await giveUp($, target, 'This project has no CI pipelines, so it is not watched.')
+      } else if (isOverdue) {
+        await giveUp($, target, `No pipeline appeared for ${target.sha?.slice(0, 8)} in 10 minutes.`)
+      } else {
+        await patch($, target, { message: `Waiting for a pipeline on ${target.sha?.slice(0, 8)}. Is it pushed?` })
+      }
       return
     }
 
-    await patch($, target, { snapshot: shot, message: null })
+    await patch($, target, { snapshot: shot, message: null, since: now })
     const before = watch.snapshot
     const isNewlyFinished =
       FINISHED.has(shot.status) && (before?.id !== shot.id || !FINISHED.has(before.status))
@@ -314,7 +333,11 @@ async function pollOne($: EngineInterface, watch: PipelineWatch, now: number) {
       void $.ui.notify(text, { title: 'CI pipeline' }).catch(() => undefined)
     }
   } catch (error) {
-    await patch($, target, { message: errorText(error) })
+    if (isOverdue) {
+      await giveUp($, target, `Stopped after 10 minutes of errors: ${errorText(error)}`)
+    } else {
+      await patch($, target, { message: errorText(error) })
+    }
   }
 }
 
