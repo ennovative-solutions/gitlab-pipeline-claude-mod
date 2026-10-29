@@ -216,6 +216,17 @@ test('when glab is not logged in the mod passes on what glab says', async () => 
   assert.equal(await mod.pipelineCommand('/work/lib'), 'group/lib: glab: 401 Unauthorized')
 })
 
+test('a reload redraws the status line of a finished pipeline', async () => {
+  const mod = setup({ status: 'success' })
+  await mod.start()
+  await mod.bash('cd /work/lib && git push', PUSH_OUTPUT)
+  // What an older version drew stays on screen until the mod draws again.
+  mod.statuses.push('CI \x1b[32m✓ lib ███░░░░░░░ 1/4\x1b[39m')
+
+  await mod.start()
+  assert.equal(mod.statuses.at(-1), 'CI ✓ lib ███░░░░░░░ 1/4')
+})
+
 test('/pipeline with no repo touched watches the session folder', async () => {
   const mod = setup()
   await mod.start()

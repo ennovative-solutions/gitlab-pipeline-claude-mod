@@ -432,10 +432,13 @@ export const register: Register = on => {
       },
     })
 
-    // A reload drops the timer; carry on with pipelines that have not finished.
+    // A reload keeps the status line an older version drew: draw it anew, and
+    // carry on with pipelines that have not finished, as the timer was dropped.
     const list = await readWatches($)
-    if (list.some(isActive)) {
+    if (list.length > 0) {
       $.ui.status(statusLine(list))
+    }
+    if (list.some(isActive)) {
       startTimer($)
     }
 

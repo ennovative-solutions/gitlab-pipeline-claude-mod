@@ -1,5 +1,9 @@
 # ci-pipeline-status
 
+[![CI](https://github.com/ennovative-solutions/gitlab-pipeline-claude-mod/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ennovative-solutions/gitlab-pipeline-claude-mod/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Claude Code mod](https://img.shields.io/badge/Claude%20Code-mod-orange.svg)](#installation)
+
 A Claude Code mod that shows the progress of GitLab CI pipelines in the status line.
 After a `git push`, you see the pipeline run, pass or fail without leaving the session:
 
