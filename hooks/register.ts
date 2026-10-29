@@ -109,8 +109,9 @@ function redact(remote: string): string {
   return remote.replace(/\/\/[^@/\s]+@/, '//')
 }
 
+// GitLab paths are case-insensitive, so `Group/App` and `group/app` are one project.
 function keyOf(one: Project): string {
-  return `${one.host}/${one.project}`
+  return `${one.host}/${one.project}`.toLowerCase()
 }
 
 async function glab<T>($: EngineInterface, host: string, path: string): Promise<T> {
@@ -346,7 +347,9 @@ function startTimer($: EngineInterface) {
 }
 
 // Adds the targets to the watched list, replacing an earlier watch of the same project.
-async function watchTargets($: EngineInterface, targets: PipelineTarget[]): Promise<string> {
+// A project named twice, as by two worktrees of it, is watched once: the last one wins.
+async function watchTargets($: EngineInterface, given: PipelineTarget[]): Promise<string> {
+  const targets = [...new Map(given.map(one => [keyOf(one), one])).values()]
   const since = await $.clock.now()
   const keys = targets.map(keyOf)
   await updateWatches($, list => [

@@ -10,6 +10,8 @@ const SHA = '6685e88ec4c448e914dbf6ae22fdef921b5a64af'
 const REMOTES: Record<string, string> = {
   '/work/app': 'git@gitlab.com:group/app.git',
   '/work/lib': 'https://gitlab.com/group/lib.git',
+  // A second worktree of group/app.
+  '/worktrees/app': 'git@gitlab.com:group/app.git',
   '/work/self': 'ssh://git@gitlab.example.com:2222/team/self.git',
   '/work/github': 'https://user:s3cr3t@github.com/group/github.git',
   '/': 'git@gitlab.com:group/home.git',
@@ -246,6 +248,36 @@ test('/pipeline watches every repository the session touched', async () => {
   assert.match(text, /group\/lib/)
   assert.doesNotMatch(text, /group\/home/)
   assert.equal(mod.statuses.at(-1), 'CI ● app ███░░░░░░░ 1/4 · ● lib ███░░░░░░░ 1/4')
+})
+
+test('running /pipeline again shows each pipeline once', async () => {
+  const mod = setup()
+  await mod.start()
+  await mod.raise('tool.call', { tool: 'Edit', file_path: '/work/app/src/main.ts' })
+  await mod.pipelineCommand()
+  await mod.pipelineCommand()
+  await mod.pipelineCommand('/work/app')
+
+  assert.equal(mod.statuses.at(-1), 'CI ● app ███░░░░░░░ 1/4')
+})
+
+test('/pipeline shows a project once when the session touched two worktrees of it', async () => {
+  const mod = setup()
+  await mod.start()
+  await mod.raise('tool.call', { tool: 'Edit', file_path: '/work/app/src/main.ts' })
+  await mod.raise('tool.call', { tool: 'Edit', file_path: '/worktrees/app/src/main.ts' })
+
+  assert.equal((await mod.pipelineCommand()).split('\n').length, 1)
+  assert.equal(mod.statuses.at(-1), 'CI ● app ███░░░░░░░ 1/4')
+})
+
+test('a pipeline URL with other letter case replaces the watch of that project', async () => {
+  const mod = setup()
+  await mod.start()
+  await mod.pipelineCommand('/work/app')
+  await mod.pipelineCommand('https://gitlab.com/Group/App/-/pipelines/42')
+
+  assert.equal(mod.statuses.at(-1), 'CI ● App ███░░░░░░░ 1/4')
 })
 
 test('/pipeline with a pipeline URL watches that pipeline', async () => {
